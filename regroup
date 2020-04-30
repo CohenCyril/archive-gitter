@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""
+Regroups gitter archives for multiple public rooms.
+
+This program can be used to postprocess the output of gitter-archive
+by specifying which public channels to export. It adds a "room" field
+to each message and concatenates all messages from all selected rooms.
+
+Example:
+1. prepare the list of rooms to regroup
+   $ ls -1 archive/*/*.json | sed 's,^[^/]*/,,' > rooms
+2. manually edit rooms if you want to omit some
+3. run:
+   $ cat rooms | xargs ./regroup
+"""
+# License: CC-0, Public Domain
+
+import argparse
+import sys
+import json
+import os
+
+def getArgs(args = sys.argv[1:]):
+  parser = argparse.ArgumentParser(
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description=__doc__)
+  parser.add_argument('rooms', metavar = 'file.json', nargs = '+',
+                      help = 'Gitter rooms to gathers.')
+  parser.add_argument("-p", "--prefix", dest = 'prefix', default = "archive",
+                      help = "Directory where archives are located (default = archive).")
+  parser.add_argument("-o", "--output", dest = 'out', default = "gitter_data.json",
+                      help = "Output file (default = gitter_data.json).")
+  parser.add_argument("-v", "--verbose", dest = 'verbose', action = 'store_true',
+                      help = "Verbose mode.")
+  parser.add_argument("-n", "--do-nothing", dest = 'do_nothing', action = 'store_true',
+                      help = "Do nothing.")
+  return parser.parse_args(args)
+
+if __name__ == "__main__":
+  args = getArgs()
+  verboseprint = print if args.verbose else lambda *a, **k: None
+  verboseprint(f"Called with arguments {args}.")
+  all_messages = []
+  for room_path in args.rooms:
+    path = os.path.join(args.prefix, room_path)
+    verboseprint(f"Reading room at {path}.")
+    with open(path) as room_file:
+      messages = json.load(room_file)
+      room_name = os.path.splitext(room_path)[0]
+      verboseprint(f"Adding field 'room' = {room_name} to all messages.")
+      for m in messages: m["room"] = room_name
+      all_messages += messages
+  verboseprint(f"Dumping output to {args.out}.")
+  if args.do_nothing:
+      print(f"Doing nothing")
+  else:
+      with open(args.out, mode = "w") as out: json.dump(all_messages, out, sort_keys=True, indent=1)
